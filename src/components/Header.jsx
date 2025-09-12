@@ -2,7 +2,7 @@ import React from "react";
 
 export default function Header() {
   return (
-    <header className="w-full flex h-28 border-b border-[#E5D9C5]">
+    <header className="w-full flex h-28">
       {/* Lado izquierdo crema */}
       <div className="w-1/2 flex items-center px-24 bg-[#F7F3EB]">
         <div className="text-3xl font-bold tracking-wide text-[#23423D]">Ta</div>

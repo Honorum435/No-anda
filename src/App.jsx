@@ -6,6 +6,7 @@ import Campaigns from './components/Campaigns';
 import AboutUs from './components/AboutUs';
 import Team from './components/Team';
 import Testimonial from './components/Testimonial';
+import CTA from './components/CTA';
 import Footer from './components/Footer';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
       <AboutUs />
       <Team />
       <Testimonial />
+      <CTA />
       <Footer />
     </div>
   );
