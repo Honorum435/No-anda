@@ -1,32 +1,6 @@
 @import "tailwindcss";
 
-body, html {
-  border: none;
-  outline: none;
-  box-shadow: none;
+html, body, #root {
   margin: 0;
-  padding: 0;
+  height: 100%;
 }
-
-* {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-*:focus {
-  outline: none !important;
-}
-
-body {
-  border: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-html {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
-
