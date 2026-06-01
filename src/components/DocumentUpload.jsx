@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
-import { ingestFiles } from '../api/client';
+import { ingestFiles, syncMega } from '../api/client';
 
 export default function DocumentUpload({ onIndexed }) {
   const inputRef = useRef(null);
   const [subiendo, setSubiendo] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [megaLog, setMegaLog] = useState([]);
 
   async function handleFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
     setSubiendo(true);
-    setMensaje('Procesando e indexando… (esto puede tardar con archivos escaneados)');
+    setMensaje('Procesando e indexando…');
     try {
       const resultados = await ingestFiles(fileList);
       const ok = resultados.filter((r) => r.ok).length;
@@ -28,8 +29,21 @@ export default function DocumentUpload({ onIndexed }) {
     }
   }
 
+  async function handleMega() {
+    setSubiendo(true);
+    setMegaLog([]);
+    try {
+      await syncMega((linea) => setMegaLog((l) => [...l, linea]));
+      onIndexed?.();
+    } catch (err) {
+      setMegaLog((l) => [...l, `Error: ${err.message}`]);
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
   return (
-    <div>
+    <div className="space-y-2">
       <input
         ref={inputRef}
         type="file"
@@ -43,9 +57,22 @@ export default function DocumentUpload({ onIndexed }) {
         disabled={subiendo}
         className="w-full px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
       >
-        {subiendo ? 'Indexando…' : '+ Subir juicios (PDF, Word, imagen)'}
+        {subiendo ? 'Procesando…' : '+ Subir archivos'}
       </button>
-      {mensaje && <p className="mt-2 text-xs text-slate-500">{mensaje}</p>}
+      <button
+        onClick={handleMega}
+        disabled={subiendo}
+        title="Descarga e indexa la carpeta de Mega configurada en .env"
+        className="w-full px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 disabled:opacity-50"
+      >
+        ☁ Sincronizar con Mega
+      </button>
+      {mensaje && <p className="text-xs text-slate-500">{mensaje}</p>}
+      {megaLog.length > 0 && (
+        <pre className="max-h-40 overflow-y-auto text-[11px] leading-snug bg-slate-50 rounded p-2 text-slate-600 whitespace-pre-wrap">
+          {megaLog.join('\n')}
+        </pre>
+      )}
     </div>
   );
 }

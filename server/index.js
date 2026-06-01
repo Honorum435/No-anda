@@ -11,6 +11,7 @@ import { addDocument, listDocuments, deleteDocument } from './rag/store.js';
 import { retrieve } from './rag/retrieve.js';
 import { systemPrompt, topKFor, buildUserMessage } from './llm/prompts.js';
 import { streamChat } from './llm/claude.js';
+import { syncMega } from './ingest/mega.js';
 
 assertKeys();
 
@@ -74,6 +75,18 @@ app.get('/api/documents', (_req, res) => {
 app.delete('/api/documents/:id', (req, res) => {
   deleteDocument(req.params.id);
   res.json({ ok: true });
+});
+
+// Sincroniza la carpeta de Mega configurada en .env (progreso en streaming).
+app.post('/api/mega/sync', async (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  const send = (msg) => res.write(msg + '\n');
+  try {
+    await syncMega(send);
+  } catch (err) {
+    send(`ERROR: ${err.message}`);
+  }
+  res.end();
 });
 
 // Chat con RAG (respuesta en streaming).

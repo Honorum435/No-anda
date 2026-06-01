@@ -24,6 +24,27 @@ export async function deleteDocument(id) {
   if (!res.ok) throw new Error('No se pudo eliminar el documento.');
 }
 
+// Sincroniza Mega y entrega los mensajes de progreso línea por línea.
+export async function syncMega(onLine) {
+  const res = await fetch('/api/mega/sync', { method: 'POST' });
+  if (!res.ok) throw new Error('No se pudo iniciar la sincronización.');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) !== -1) {
+      const linea = buf.slice(0, i);
+      buf = buf.slice(i + 1);
+      if (linea) onLine(linea);
+    }
+  }
+  if (buf) onLine(buf);
+}
+
 // Envía la consulta y recibe la respuesta en streaming.
 // onToken(textoParcial) se llama por cada fragmento; devuelve { fuentes }.
 export async function sendChat({ pregunta, modo, historial }, onToken) {

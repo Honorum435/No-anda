@@ -7,6 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PORT = process.env.PORT || 3001;
 export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 export const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
+export const MEGA_EMAIL = process.env.MEGA_EMAIL;
+export const MEGA_PASSWORD = process.env.MEGA_PASSWORD;
+export const MEGA_FOLDER = process.env.MEGA_FOLDER || '';
 
 // Carpeta donde se guardan los documentos subidos y el índice vectorial.
 // Está en .gitignore: nada de esto se sube al repositorio.
