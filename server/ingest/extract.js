@@ -26,11 +26,21 @@ async function extraerPdf(buffer) {
 
   // PDF escaneado (sin capa de texto): OCR con la visión de Claude.
   if (texto.length < paginas * MIN_CHARS_POR_PAGINA) {
-    const ocr = await extractTextFromDocument({
-      base64: buffer.toString('base64'),
-      mediaType: 'application/pdf',
-    });
-    if (ocr && ocr.length > texto.length) return ocr;
+    try {
+      const ocr = await extractTextFromDocument({
+        base64: buffer.toString('base64'),
+        mediaType: 'application/pdf',
+      });
+      if (ocr && ocr.length > texto.length) return ocr;
+    } catch (err) {
+      // Sin clave de API (modo demo) no hay OCR. Si el PDF tenía algo de
+      // texto lo aprovechamos; si no, avisamos con claridad.
+      if (!texto) {
+        throw new Error(
+          `PDF escaneado: hace falta ANTHROPIC_API_KEY para leerlo (${err.message}).`,
+        );
+      }
+    }
   }
   return texto;
 }

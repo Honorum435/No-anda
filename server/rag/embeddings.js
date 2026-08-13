@@ -31,7 +31,10 @@ async function embed(texts, inputType) {
 }
 
 // Voyage acepta lotes; los partimos para no exceder límites de la API.
+// En modo demo (sin clave) devolvemos null: los fragmentos se guardan igual y
+// la búsqueda cae a palabras clave.
 export async function embedDocuments(texts) {
+  if (!VOYAGE_API_KEY) return texts.map(() => null);
   const LOTE = 64;
   const out = [];
   for (let i = 0; i < texts.length; i += LOTE) {

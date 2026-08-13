@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { PORT, assertKeys } from './config.js';
 import { extractText } from './ingest/extract.js';
@@ -12,17 +15,36 @@ import { retrieve } from './rag/retrieve.js';
 import { systemPrompt, topKFor, buildUserMessage } from './llm/prompts.js';
 import { streamChat } from './llm/claude.js';
 import { syncMega } from './ingest/mega.js';
+import { mountAuthRoutes, requireAuth, countUsers } from './auth.js';
+import { MODO_DEMO, SIN_CLAUDE, respuestaDemo } from './demo.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DIST_DIR = path.join(__dirname, '..', 'dist');
 
 assertKeys();
 
 const app = express();
-app.use(cors());
+// Detrás del túnel de Cloudflare hay un proxy: necesario para leer la IP real
+// y saber si la conexión original era HTTPS.
+app.set('trust proxy', 1);
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB por archivo
 });
+
+// Rutas de login/usuarios (públicas por necesidad, con freno anti-fuerza bruta).
+mountAuthRoutes(app);
+
+// Estado general de la app (para que el frontend sepa si está en modo demo).
+app.get('/api/estado', requireAuth, (_req, res) => {
+  res.json({ modoDemo: MODO_DEMO });
+});
+
+// A partir de acá, TODO exige haber iniciado sesión.
+app.use('/api', requireAuth);
 
 // Indexar uno o varios documentos.
 app.post('/api/ingest', upload.array('files'), async (req, res) => {
@@ -111,6 +133,12 @@ app.post('/api/chat', async (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.write(JSON.stringify({ citas }) + '\n');
 
+    // Sin clave de Claude: respuesta de demostración con los pasajes reales.
+    if (SIN_CLAUDE) {
+      res.write(respuestaDemo(fragmentos));
+      return res.end();
+    }
+
     const stream = streamChat({
       system: systemPrompt(modo),
       userMessage: buildUserMessage(pregunta, fragmentos),
@@ -130,6 +158,26 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Cualquier ruta /api que no exista responde 404 (y no la página web).
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }));
+
+// Sirve el frontend ya construido (npm run build), para que el túnel exponga
+// una sola dirección con la app completa.
+if (fs.existsSync(DIST_DIR)) {
+  app.use(express.static(DIST_DIR));
+  app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
+}
+
 app.listen(PORT, () => {
-  console.log(`\n  Servidor del asistente legal en http://localhost:${PORT}\n`);
+  console.log(`\n  ⚖️  Asistente Legal en http://localhost:${PORT}\n`);
+  if (MODO_DEMO) {
+    console.log('  🔎 MODO DEMOSTRACIÓN (faltan claves de API en .env)\n');
+  }
+  if (countUsers() === 0) {
+    console.log('  👤 Todavía no hay usuarios. Abrí la dirección de arriba EN ESTA');
+    console.log('     computadora para crear el primero.\n');
+  }
+  if (!fs.existsSync(DIST_DIR)) {
+    console.log('  ℹ️  Sin "dist": ejecutá "npm run build" para servir la app.\n');
+  }
 });

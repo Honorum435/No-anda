@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server/index.js",
-    "dev:all": "concurrently -n frontend,backend -c cyan,magenta \"npm run dev\" \"npm run server\""
+    "dev:all": "concurrently -n frontend,backend -c cyan,magenta \"npm run dev\" \"npm run server\"",
+    "start": "npm run build && node server/index.js",
+    "online": "npm run build && concurrently -n app,tunel -c green,yellow \"node server/index.js\" \"npm run tunel\"",
+    "tunel": "cloudflared tunnel --url http://localhost:3001",
+    "usuario": "node server/scripts/usuario.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",

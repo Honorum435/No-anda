@@ -1,5 +1,6 @@
 import { allChunks } from './store.js';
 import { embedQuery } from './embeddings.js';
+import { SIN_EMBEDDINGS, buscarPorPalabras } from '../demo.js';
 
 function cosineSimilarity(a, b) {
   let dot = 0;
@@ -24,9 +25,16 @@ export async function retrieve(query, k = 6, docIds = null) {
   }
   if (chunks.length === 0) return [];
 
+  // Modo demo: sin clave de embeddings, buscamos por palabras clave.
+  if (SIN_EMBEDDINGS) return buscarPorPalabras(chunks, query, k);
+
+  // Fragmentos indexados en modo demo no tienen embedding: los ignoramos.
+  const conVector = chunks.filter((c) => Array.isArray(c.embedding));
+  if (conVector.length === 0) return buscarPorPalabras(chunks, query, k);
+
   const qVec = await embedQuery(query);
 
-  return chunks
+  return conVector
     .map((c) => ({
       docId: c.docId,
       docName: c.docName,

@@ -1,32 +1,72 @@
 // Cliente del frontend para hablar con el backend.
+// `credentials: 'include'` hace que viaje la cookie de sesión en cada pedido.
 
-export async function fetchDocuments() {
-  const res = await fetch('/api/documents');
-  if (!res.ok) throw new Error('No se pudieron cargar los documentos.');
-  const data = await res.json();
-  return data.documents;
+async function pedir(url, opciones = {}) {
+  const res = await fetch(url, { credentials: 'include', ...opciones });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const err = new Error(data.error || `Error ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
 }
+
+// ---------- Sesión ----------
+
+export const authEstado = () => pedir('/api/auth/estado');
+
+export const login = (usuario, password) =>
+  pedir('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario, password }),
+  });
+
+export const setupPrimerUsuario = (usuario, password) =>
+  pedir('/api/auth/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario, password }),
+  });
+
+export const logout = () => pedir('/api/auth/logout', { method: 'POST' });
+
+export const listarUsuarios = () => pedir('/api/auth/usuarios').then((d) => d.usuarios);
+
+export const crearUsuario = (usuario, password) =>
+  pedir('/api/auth/usuarios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario, password }),
+  });
+
+export const eliminarUsuario = (nombre) =>
+  pedir(`/api/auth/usuarios/${encodeURIComponent(nombre)}`, { method: 'DELETE' });
+
+// ---------- Estado de la app ----------
+
+export const appEstado = () => pedir('/api/estado');
+
+// ---------- Documentos ----------
+
+export const fetchDocuments = () => pedir('/api/documents').then((d) => d.documents);
+
+export const deleteDocument = (id) =>
+  pedir(`/api/documents/${id}`, { method: 'DELETE' });
 
 export async function ingestFiles(fileList) {
   const form = new FormData();
   for (const file of fileList) form.append('files', file);
-  const res = await fetch('/api/ingest', { method: 'POST', body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Error al indexar los archivos.');
-  }
-  const data = await res.json();
+  const data = await pedir('/api/ingest', { method: 'POST', body: form });
   return data.resultados;
 }
 
-export async function deleteDocument(id) {
-  const res = await fetch(`/api/documents/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('No se pudo eliminar el documento.');
-}
+// ---------- Mega ----------
 
 // Sincroniza Mega y entrega los mensajes de progreso línea por línea.
 export async function syncMega(onLine) {
-  const res = await fetch('/api/mega/sync', { method: 'POST' });
+  const res = await fetch('/api/mega/sync', { method: 'POST', credentials: 'include' });
   if (!res.ok) throw new Error('No se pudo iniciar la sincronización.');
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -45,12 +85,14 @@ export async function syncMega(onLine) {
   if (buf) onLine(buf);
 }
 
-// Envía la consulta y recibe la respuesta en streaming.
+// ---------- Chat ----------
+
 // Protocolo: la primera línea del cuerpo es un JSON { citas }, el resto es texto.
 // onToken(textoParcial) se llama por cada fragmento; devuelve { citas }.
 export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
   const res = await fetch('/api/chat', {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pregunta, modo, historial, docIds }),
   });

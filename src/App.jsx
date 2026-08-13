@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchDocuments, sendChat } from './api/client';
+import { fetchDocuments, sendChat, authEstado, appEstado, logout } from './api/client';
 import ModeSelector from './components/ModeSelector';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentLibrary from './components/DocumentLibrary';
+import UsersPanel from './components/UsersPanel';
+import Login from './components/Login';
 
 const SUGERENCIAS = [
   '¿De qué tratan estos casos?',
@@ -36,6 +38,8 @@ function renderConCitas(texto, citas, onAbrir) {
 }
 
 export default function App() {
+  const [sesion, setSesion] = useState(null); // null = todavía cargando
+  const [modoDemo, setModoDemo] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [modo, setModo] = useState('preguntar');
@@ -44,6 +48,9 @@ export default function App() {
   const [cargando, setCargando] = useState(false);
   const [citaActiva, setCitaActiva] = useState(null);
   const finRef = useRef(null);
+
+  const revisarSesion = () => authEstado().then(setSesion).catch(() => setSesion({ autenticado: false }));
+  useEffect(() => { revisarSesion(); }, []);
 
   async function recargarDocs() {
     const docs = await fetchDocuments().catch(() => []);
@@ -54,8 +61,21 @@ export default function App() {
       return prev.filter((id) => docs.some((d) => d.id === id));
     });
   }
-  useEffect(() => { recargarDocs(); }, []);
+  // Los documentos solo se cargan una vez que hay sesión iniciada.
+  useEffect(() => {
+    if (!sesion?.autenticado) return;
+    recargarDocs();
+    appEstado().then((e) => setModoDemo(e.modoDemo)).catch(() => {});
+  }, [sesion?.autenticado]);
   useEffect(() => { finRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [mensajes]);
+
+  async function salir() {
+    await logout().catch(() => {});
+    setMensajes([]);
+    setDocuments([]);
+    setSelectedIds([]);
+    revisarSesion();
+  }
 
   const toggleDoc = (id) =>
     setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -98,12 +118,36 @@ export default function App() {
     }
   }
 
+  // Mientras averiguamos si hay sesión, no mostramos nada.
+  if (sesion === null) {
+    return <div className="min-h-screen bg-slate-100" />;
+  }
+  if (!sesion.autenticado) {
+    return <Login estado={sesion} onEntrar={revisarSesion} />;
+  }
+
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800 font-sans text-[15px]">
       {/* Panel de fuentes */}
       <aside className="w-72 shrink-0 bg-white m-2 rounded-xl shadow-sm p-4 overflow-y-auto flex flex-col">
-        <h1 className="text-base font-bold">⚖️ Asistente Legal</h1>
-        <p className="text-xs text-slate-500 mb-4">Fuentes</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-base font-bold">⚖️ Asistente Legal</h1>
+            <p className="text-xs text-slate-500">{sesion.usuario}</p>
+          </div>
+          <button onClick={salir} title="Cerrar sesión" className="text-xs text-slate-400 hover:text-slate-700">
+            Salir
+          </button>
+        </div>
+
+        {modoDemo && (
+          <p className="mt-3 text-[11px] leading-snug bg-amber-50 text-amber-800 rounded-md px-2 py-1.5">
+            🔎 <strong>Modo demostración.</strong> Faltan las claves de API en el archivo
+            .env: la búsqueda es por palabras y la IA todavía no redacta.
+          </p>
+        )}
+
+        <p className="text-xs font-semibold uppercase text-slate-400 mt-4 mb-2">Fuentes</p>
         <DocumentUpload onIndexed={recargarDocs} />
         <DocumentLibrary
           documents={documents}
@@ -112,6 +156,7 @@ export default function App() {
           onToggleAll={toggleAll}
           onChange={recargarDocs}
         />
+        <UsersPanel usuarioActual={sesion.usuario} />
       </aside>
 
       {/* Chat */}

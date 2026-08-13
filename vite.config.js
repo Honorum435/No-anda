@@ -7,7 +7,10 @@ export default defineConfig({
   server: {
     // Redirige las llamadas /api al servidor backend (Express) durante el desarrollo.
     proxy: {
-      '/api': 'http://localhost:3001',
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })
