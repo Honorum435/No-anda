@@ -15,8 +15,13 @@ function cosineSimilarity(a, b) {
 }
 
 // Recupera los k fragmentos más relevantes para una pregunta.
-export async function retrieve(query, k = 6) {
-  const chunks = allChunks();
+// docIds (opcional): si se pasa, solo busca dentro de esos documentos.
+export async function retrieve(query, k = 6, docIds = null) {
+  let chunks = allChunks();
+  if (docIds && docIds.length) {
+    const set = new Set(docIds);
+    chunks = chunks.filter((c) => set.has(c.docId));
+  }
   if (chunks.length === 0) return [];
 
   const qVec = await embedQuery(query);

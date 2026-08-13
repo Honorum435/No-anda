@@ -4,8 +4,8 @@ const BASE = `Eres un asistente jurídico que ayuda a un abogado a trabajar con 
 Respondes en español, con lenguaje claro y profesional.
 
 REGLAS IMPORTANTES:
-- Basa tus respuestas ÚNICAMENTE en los fragmentos de documentos que se te proporcionan como contexto.
-- Cita siempre el documento de origen entre corchetes, por ejemplo: [Demanda Pérez 2021].
+- Basa tus respuestas ÚNICAMENTE en los fragmentos de documentos que se te proporcionan como contexto. Cada fragmento está numerado: [1], [2], [3]...
+- CITA SIEMPRE con el número del fragmento entre corchetes, justo después de la afirmación que lo usa. Ejemplo: "El plazo era de 30 días [2]." Puedes citar varios: [1][3].
 - Si la información no está en el contexto, dilo explícitamente: "No encuentro esa información en los documentos proporcionados." NO inventes datos, fechas, montos ni artículos.
 - Distingue claramente entre lo que dicen los documentos y tus razonamientos o sugerencias.
 - Recuerda al usuario, cuando corresponda, que debe verificar la información, ya que eres una herramienta de apoyo y no sustituyes el criterio profesional del abogado.`;
@@ -58,7 +58,7 @@ export function buildUserMessage(pregunta, fragmentos) {
   const contexto = fragmentos
     .map(
       (f, i) =>
-        `--- Fragmento ${i + 1} | Documento: ${f.docName} ---\n${f.text}`,
+        `[${i + 1}] (Documento: ${f.docName})\n${f.text}`,
     )
     .join('\n\n');
 

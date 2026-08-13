@@ -91,23 +91,25 @@ app.post('/api/mega/sync', async (_req, res) => {
 
 // Chat con RAG (respuesta en streaming).
 app.post('/api/chat', async (req, res) => {
-  const { pregunta, modo = 'preguntar', historial = [] } = req.body || {};
+  const { pregunta, modo = 'preguntar', historial = [], docIds = null } = req.body || {};
   if (!pregunta || !pregunta.trim()) {
     return res.status(400).json({ error: 'Falta la pregunta.' });
   }
 
   try {
-    const fragmentos = await retrieve(pregunta, topKFor(modo));
+    const fragmentos = await retrieve(pregunta, topKFor(modo), docIds);
 
-    // Las fuentes se conocen antes de generar la respuesta: las enviamos en
-    // una cabecera para que el frontend las muestre junto al texto.
-    const fuentes = fragmentos.map((f) => ({
+    // Protocolo: primera línea = JSON con las citas numeradas (pasaje + doc),
+    // luego un salto de línea y a continuación la respuesta en streaming.
+    const citas = fragmentos.map((f, i) => ({
+      n: i + 1,
       docId: f.docId,
       docName: f.docName,
+      text: f.text,
       score: Number(f.score.toFixed(3)),
     }));
-    res.setHeader('X-Sources', encodeURIComponent(JSON.stringify(fuentes)));
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.write(JSON.stringify({ citas }) + '\n');
 
     const stream = streamChat({
       system: systemPrompt(modo),

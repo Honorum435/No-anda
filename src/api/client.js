@@ -46,12 +46,13 @@ export async function syncMega(onLine) {
 }
 
 // Envía la consulta y recibe la respuesta en streaming.
-// onToken(textoParcial) se llama por cada fragmento; devuelve { fuentes }.
-export async function sendChat({ pregunta, modo, historial }, onToken) {
+// Protocolo: la primera línea del cuerpo es un JSON { citas }, el resto es texto.
+// onToken(textoParcial) se llama por cada fragmento; devuelve { citas }.
+export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pregunta, modo, historial }),
+    body: JSON.stringify({ pregunta, modo, historial, docIds }),
   });
 
   if (!res.ok) {
@@ -59,23 +60,33 @@ export async function sendChat({ pregunta, modo, historial }, onToken) {
     throw new Error(data.error || 'Error en la consulta.');
   }
 
-  let fuentes = [];
-  const cabecera = res.headers.get('X-Sources');
-  if (cabecera) {
-    try {
-      fuentes = JSON.parse(decodeURIComponent(cabecera));
-    } catch {
-      fuentes = [];
-    }
-  }
-
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  let citas = [];
+  let headerDone = false;
+  let buffer = '';
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    onToken(decoder.decode(value, { stream: true }));
+    const trozo = decoder.decode(value, { stream: true });
+
+    if (!headerDone) {
+      buffer += trozo;
+      const nl = buffer.indexOf('\n');
+      if (nl === -1) continue;
+      try {
+        citas = JSON.parse(buffer.slice(0, nl)).citas || [];
+      } catch {
+        citas = [];
+      }
+      headerDone = true;
+      const resto = buffer.slice(nl + 1);
+      if (resto) onToken(resto);
+    } else {
+      onToken(trozo);
+    }
   }
 
-  return { fuentes };
+  return { citas };
 }
