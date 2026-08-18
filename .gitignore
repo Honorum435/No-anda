@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Variables de entorno (claves de API) — NUNCA subir a git
+.env
+.env.*
+!.env.example
+
+# Datos locales: documentos subidos e índice vectorial (confidencial)
+server/data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
