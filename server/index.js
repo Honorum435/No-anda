@@ -27,13 +27,44 @@ const app = express();
 // Detrás del túnel de Cloudflare hay un proxy: necesario para leer la IP real
 // y saber si la conexión original era HTTPS.
 app.set('trust proxy', 1);
-app.use(cors({ origin: true, credentials: true }));
+
+// En producción el backend sirve también la página, así que TODO es del mismo
+// origen y no hace falta CORS. Solo lo habilitamos para el servidor de
+// desarrollo de Vite (localhost:5173) y contra una lista fija: reflejar
+// cualquier origen con credentials dejaría a otros sitios usar la sesión.
+const ORIGENES_DEV = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+app.use(
+  cors({
+    origin: (origin, cb) =>
+      cb(null, !origin || ORIGENES_DEV.includes(origin)),
+    credentials: true,
+  }),
+);
 app.use(express.json({ limit: '2mb' }));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB por archivo
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25 MB por archivo
+    files: 20, // y como mucho 20 por vez, para no agotar la memoria
+  },
 });
+
+// Deja pasar solo un historial de chat con la forma esperada: si no, el
+// cliente podría inventar turnos del asistente y torcer la conversación.
+function historialSeguro(historial) {
+  if (!Array.isArray(historial)) return [];
+  return historial
+    .filter(
+      (m) =>
+        m &&
+        (m.role === 'user' || m.role === 'assistant') &&
+        typeof m.content === 'string' &&
+        m.content.trim(),
+    )
+    .slice(-20) // solo los últimos turnos
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 20000) }));
+}
 
 // Rutas de login/usuarios (públicas por necesidad, con freno anti-fuerza bruta).
 mountAuthRoutes(app);
@@ -119,7 +150,11 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    const fragmentos = await retrieve(pregunta, topKFor(modo), docIds);
+    const { fragmentos, aviso } = await retrieve(
+      String(pregunta).slice(0, 8000),
+      topKFor(modo),
+      docIds,
+    );
 
     // Protocolo: primera línea = JSON con las citas numeradas (pasaje + doc),
     // luego un salto de línea y a continuación la respuesta en streaming.
@@ -131,7 +166,7 @@ app.post('/api/chat', async (req, res) => {
       score: Number(f.score.toFixed(3)),
     }));
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.write(JSON.stringify({ citas }) + '\n');
+    res.write(JSON.stringify({ citas, aviso }) + '\n');
 
     // Sin clave de Claude: respuesta de demostración con los pasajes reales.
     if (SIN_CLAUDE) {
@@ -142,7 +177,7 @@ app.post('/api/chat', async (req, res) => {
     const stream = streamChat({
       system: systemPrompt(modo),
       userMessage: buildUserMessage(pregunta, fragmentos),
-      history: historial,
+      history: historialSeguro(historial),
     });
 
     stream.on('text', (delta) => res.write(delta));

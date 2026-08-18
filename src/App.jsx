@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchDocuments, sendChat, authEstado, appEstado, logout } from './api/client';
+import {
+  fetchDocuments, sendChat, authEstado, appEstado, logout, onSesionVencida,
+} from './api/client';
 import ModeSelector from './components/ModeSelector';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentLibrary from './components/DocumentLibrary';
@@ -15,25 +17,30 @@ const SUGERENCIAS = [
 
 // Convierte el texto de la respuesta en React, transformando [1] o [1,2] en
 // chips clicables que abren el pasaje citado.
+// Solo se convierte si TODOS los números corresponden a una cita real: así un
+// documento que diga "[1961]" (un año entre corchetes) se muestra tal cual en
+// vez de convertirse en una cita inventada, y nunca se pierde texto.
 function renderConCitas(texto, citas, onAbrir) {
-  const partes = texto.split(/(\[[\d,\s]+\])/g);
+  const partes = texto.split(/(\[\d+(?:\s*,\s*\d+)*\])/g);
+
   return partes.map((parte, i) => {
-    const m = parte.match(/^\[([\d,\s]+)\]$/);
+    const m = parte.match(/^\[(\d+(?:\s*,\s*\d+)*)\]$/);
     if (!m) return <span key={i}>{parte}</span>;
-    const nums = m[1].split(',').map((s) => parseInt(s.trim(), 10)).filter(Boolean);
-    return nums.map((n) => {
-      const cita = citas.find((c) => c.n === n);
-      return (
-        <button
-          key={`${i}-${n}`}
-          onClick={() => cita && onAbrir(cita)}
-          title={cita ? cita.docName : ''}
-          className="inline-flex items-center justify-center align-super text-[10px] font-semibold w-4 h-4 mx-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-        >
-          {n}
-        </button>
-      );
-    });
+
+    const nums = m[1].split(',').map((s) => parseInt(s.trim(), 10));
+    const encontradas = nums.map((n) => citas.find((c) => c.n === n));
+    if (encontradas.some((c) => !c)) return <span key={i}>{parte}</span>;
+
+    return encontradas.map((cita, j) => (
+      <button
+        key={`${i}-${j}`}
+        onClick={() => onAbrir(cita)}
+        title={cita.docName}
+        className="inline-flex items-center justify-center align-super text-[10px] font-semibold w-4 h-4 mx-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+      >
+        {cita.n}
+      </button>
+    ));
   });
 }
 
@@ -51,6 +58,15 @@ export default function App() {
 
   const revisarSesion = () => authEstado().then(setSesion).catch(() => setSesion({ autenticado: false }));
   useEffect(() => { revisarSesion(); }, []);
+
+  // Si la sesión vence en mitad de la app, volvemos al login limpiamente.
+  useEffect(() => {
+    onSesionVencida(() => {
+      setSesion({ autenticado: false, requiereSetup: false, puedeSetup: false });
+      setMensajes([]);
+      setDocuments([]);
+    });
+  }, []);
 
   async function recargarDocs() {
     const docs = await fetchDocuments().catch(() => []);
@@ -84,7 +100,7 @@ export default function App() {
 
   async function enviar(preguntaTexto) {
     const pregunta = (preguntaTexto ?? texto).trim();
-    if (!pregunta || cargando) return;
+    if (!pregunta || cargando || selectedIds.length === 0) return;
     setTexto('');
     setCargando(true);
 
@@ -92,7 +108,7 @@ export default function App() {
     setMensajes((m) => [...m, { role: 'user', content: pregunta }, { role: 'assistant', content: '', citas: [] }]);
 
     try {
-      const { citas } = await sendChat(
+      const { citas, aviso } = await sendChat(
         { pregunta, modo, historial, docIds: selectedIds },
         (delta) => {
           setMensajes((m) => {
@@ -104,7 +120,7 @@ export default function App() {
       );
       setMensajes((m) => {
         const c = [...m];
-        c[c.length - 1] = { ...c[c.length - 1], citas };
+        c[c.length - 1] = { ...c[c.length - 1], citas, aviso };
         return c;
       });
     } catch (err) {
@@ -202,6 +218,11 @@ export default function App() {
                     ))}
                   </div>
                 )}
+                {m.role === 'assistant' && m.aviso && (
+                  <p className="mt-2 text-xs bg-amber-50 text-amber-800 rounded px-2 py-1">
+                    ⚠️ {m.aviso}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -219,7 +240,8 @@ export default function App() {
           />
           <button
             onClick={() => enviar()}
-            disabled={cargando}
+            disabled={cargando || selectedIds.length === 0}
+            title={selectedIds.length === 0 ? 'Marcá al menos una fuente' : ''}
             className="px-5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 disabled:opacity-50"
           >
             {cargando ? '…' : 'Enviar'}

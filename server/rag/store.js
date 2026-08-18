@@ -22,15 +22,28 @@ function load() {
   ensureDirs();
   if (!fs.existsSync(STORE_FILE)) return emptyStore();
   try {
-    return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
-  } catch {
-    return emptyStore();
+    const datos = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+    if (!Array.isArray(datos.documents) || !Array.isArray(datos.chunks)) {
+      throw new Error('formato inválido');
+    }
+    return datos;
+  } catch (err) {
+    // El índice existe pero está dañado. Cortamos en vez de devolver un índice
+    // vacío: si siguiéramos, el primer guardado pisaría todos los juicios.
+    throw new Error(
+      `El índice ${STORE_FILE} está dañado (${err.message}). ` +
+        'Movelo a un lado y volvé a indexar los documentos.',
+    );
   }
 }
 
 function save(store) {
   ensureDirs();
-  fs.writeFileSync(STORE_FILE, JSON.stringify(store), 'utf8');
+  // Escritura atómica: temporal + rename, para no destruir el índice si el
+  // proceso se corta a mitad de la escritura.
+  const tmp = `${STORE_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(store), 'utf8');
+  fs.renameSync(tmp, STORE_FILE);
 }
 
 export function addDocument({ id, name, fileName, chunks }) {

@@ -16,25 +16,43 @@ function cosineSimilarity(a, b) {
 }
 
 // Recupera los k fragmentos más relevantes para una pregunta.
-// docIds (opcional): si se pasa, solo busca dentro de esos documentos.
+// docIds: lista de documentos donde buscar. `null` significa "en todos".
+// Una lista VACÍA significa "en ninguno" y devuelve cero resultados: si no,
+// destildar todas las fuentes terminaría respondiendo con expedientes que el
+// usuario decidió excluir.
 export async function retrieve(query, k = 6, docIds = null) {
   let chunks = allChunks();
-  if (docIds && docIds.length) {
+
+  if (Array.isArray(docIds)) {
     const set = new Set(docIds);
     chunks = chunks.filter((c) => set.has(c.docId));
   }
-  if (chunks.length === 0) return [];
+  if (chunks.length === 0) return { fragmentos: [], aviso: null };
 
   // Modo demo: sin clave de embeddings, buscamos por palabras clave.
-  if (SIN_EMBEDDINGS) return buscarPorPalabras(chunks, query, k);
+  if (SIN_EMBEDDINGS) {
+    return { fragmentos: buscarPorPalabras(chunks, query, k), aviso: null };
+  }
 
-  // Fragmentos indexados en modo demo no tienen embedding: los ignoramos.
+  // Los fragmentos indexados en modo demo no tienen embedding. No podemos
+  // buscarlos por significado, así que avisamos en vez de ignorarlos callados.
   const conVector = chunks.filter((c) => Array.isArray(c.embedding));
-  if (conVector.length === 0) return buscarPorPalabras(chunks, query, k);
+  const sinVector = chunks.filter((c) => !Array.isArray(c.embedding));
+
+  const nombresSinIndexar = [...new Set(sinVector.map((c) => c.docName))];
+  const aviso = nombresSinIndexar.length
+    ? `Estos documentos se cargaron en modo demostración y todavía no están ` +
+      `indexados para búsqueda por significado: ${nombresSinIndexar.join(', ')}. ` +
+      `Volvé a subirlos para incluirlos.`
+    : null;
+
+  if (conVector.length === 0) {
+    return { fragmentos: buscarPorPalabras(chunks, query, k), aviso };
+  }
 
   const qVec = await embedQuery(query);
 
-  return conVector
+  const fragmentos = conVector
     .map((c) => ({
       docId: c.docId,
       docName: c.docName,
@@ -44,4 +62,6 @@ export async function retrieve(query, k = 6, docIds = null) {
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, k);
+
+  return { fragmentos, aviso };
 }

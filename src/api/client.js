@@ -1,9 +1,21 @@
 // Cliente del frontend para hablar con el backend.
 // `credentials: 'include'` hace que viaje la cookie de sesión en cada pedido.
 
+// Se avisa a la app cuando la sesión venció, para volver al login en vez de
+// quedar mostrando errores sueltos.
+let alPerderSesion = () => {};
+export function onSesionVencida(fn) {
+  alPerderSesion = fn;
+}
+
+function revisar401(res, url) {
+  if (res.status === 401 && !url.startsWith('/api/auth/')) alPerderSesion();
+}
+
 async function pedir(url, opciones = {}) {
   const res = await fetch(url, { credentials: 'include', ...opciones });
   if (!res.ok) {
+    revisar401(res, url);
     const data = await res.json().catch(() => ({}));
     const err = new Error(data.error || `Error ${res.status}`);
     err.status = res.status;
@@ -67,7 +79,10 @@ export async function ingestFiles(fileList) {
 // Sincroniza Mega y entrega los mensajes de progreso línea por línea.
 export async function syncMega(onLine) {
   const res = await fetch('/api/mega/sync', { method: 'POST', credentials: 'include' });
-  if (!res.ok) throw new Error('No se pudo iniciar la sincronización.');
+  if (!res.ok) {
+    revisar401(res, '/api/mega/sync');
+    throw new Error('No se pudo iniciar la sincronización.');
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
@@ -98,6 +113,7 @@ export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
   });
 
   if (!res.ok) {
+    revisar401(res, '/api/chat');
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'Error en la consulta.');
   }
@@ -105,6 +121,7 @@ export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let citas = [];
+  let aviso = null;
   let headerDone = false;
   let buffer = '';
 
@@ -118,7 +135,9 @@ export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
       const nl = buffer.indexOf('\n');
       if (nl === -1) continue;
       try {
-        citas = JSON.parse(buffer.slice(0, nl)).citas || [];
+        const cab = JSON.parse(buffer.slice(0, nl));
+        citas = cab.citas || [];
+        aviso = cab.aviso || null;
       } catch {
         citas = [];
       }
@@ -130,5 +149,5 @@ export async function sendChat({ pregunta, modo, historial, docIds }, onToken) {
     }
   }
 
-  return { citas };
+  return { citas, aviso };
 }

@@ -10,7 +10,7 @@ const [accion, nombre, password] = process.argv.slice(2);
 try {
   switch (accion) {
     case 'agregar':
-      console.log(`✓ Usuario "${addUser(nombre, password)}" creado.`);
+      console.log(`✓ Usuario "${await addUser(nombre, password)}" creado.`);
       break;
     case 'quitar':
       removeUser(nombre);
