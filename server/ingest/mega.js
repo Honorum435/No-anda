@@ -6,6 +6,8 @@ import { extractText } from './extract.js';
 import { chunkText } from './chunk.js';
 import { embedDocuments } from '../rag/embeddings.js';
 import { addDocument, listDocuments } from '../rag/store.js';
+import { registrarDesdeDocumento } from '../privacy.js';
+import { ANONIMIZAR } from '../config.js';
 
 const SOPORTADOS = /\.(pdf|docx|txt|md|png|jpe?g|webp|gif)$/i;
 
@@ -55,6 +57,7 @@ export async function syncMega(onProgress) {
         onProgress(`  ✗ sin texto extraíble`);
         continue;
       }
+      if (ANONIMIZAR) registrarDesdeDocumento({ fileName: archivo.name, texto });
       const embeddings = await embedDocuments(fragmentos);
       const docId = crypto.randomUUID();
       addDocument({

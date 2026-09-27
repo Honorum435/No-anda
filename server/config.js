@@ -18,6 +18,11 @@ export const MEGA_FOLDER = process.env.MEGA_FOLDER || '';
 export const LLM_PROVIDER =
   process.env.LLM_PROVIDER || (GEMINI_API_KEY ? 'gemini' : 'claude');
 
+// Reemplazar nombres, DNI, CUIT y correos por códigos antes de enviarlos a la
+// IA. Viene activado por defecto: es la opción prudente con datos de clientes.
+// Para apagarlo, poner ANONIMIZAR=no en el .env.
+export const ANONIMIZAR = !/^(no|false|0)$/i.test(process.env.ANONIMIZAR || '');
+
 // Carpeta donde se guardan los documentos subidos y el índice vectorial.
 // Está en .gitignore: nada de esto se sube al repositorio.
 export const DATA_DIR = path.join(__dirname, 'data');

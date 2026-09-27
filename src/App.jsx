@@ -6,6 +6,7 @@ import ModeSelector from './components/ModeSelector';
 import DocumentUpload from './components/DocumentUpload';
 import DocumentLibrary from './components/DocumentLibrary';
 import UsersPanel from './components/UsersPanel';
+import PrivacyPanel from './components/PrivacyPanel';
 import Login from './components/Login';
 
 const SUGERENCIAS = [
@@ -179,6 +180,7 @@ export default function App() {
           onToggleAll={toggleAll}
           onChange={recargarDocs}
         />
+        <PrivacyPanel />
         <UsersPanel usuarioActual={sesion.usuario} />
       </aside>
 

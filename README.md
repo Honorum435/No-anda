@@ -141,9 +141,41 @@ Con las casillas ☑ de la izquierda elegís **en qué documentos** buscar.
 
 ---
 
+## Datos reservados (anonimizado)
+
+Antes de enviar algo a la IA, la app **reemplaza los nombres y los datos
+identificatorios por códigos**, y los restituye en la respuesta. El proveedor ve:
+
+```
+PERSONA_1 c/ EMPRESA_1 s/ despido
+El actor PERSONA_1, DNI DNI_1, con correo EMAIL_1, ingresó el 3 de marzo de 2015.
+Monto reclamado: $2.040.000.
+```
+
+En pantalla vos siempre ves el texto real: los pasajes citados salen de la base
+local y nunca pasan por el anonimizado. Los montos y las fechas **sí** viajan,
+porque son necesarios para responder.
+
+Qué detecta solo, al cargar cada expediente:
+
+| Dato | Cómo |
+|---|---|
+| Partes (actor y demandado) | De la carátula `APELLIDO, Nombre c/ RAZÓN SOCIAL s/ materia` |
+| Variantes del nombre | `PEREZ, Juan Carlos` también cubre `Juan Carlos Perez` y `Perez` |
+| DNI, CUIT, correos, teléfonos | Por su formato |
+
+Lo que no encuentre, se agrega a mano en el panel **Datos reservados**. Para
+apagar todo esto, poné `ANONIMIZAR=no` en el `.env`.
+
+> No es anonimato perfecto: un expediente muy particular puede ser identificable
+> por su contenido, y una mención informal ("la constructora") no se detecta.
+> Reduce la exposición, no la elimina.
+
 ## Privacidad
 
 - Los juicios y el índice viven en `server/data/`, que **nunca se sube a git**.
+- El índice es una base **SQLite** (`asistente.db`), incluida en Node: un archivo
+  en la computadora, sin servidor ni servicio externo.
 - A la API de Anthropic solo viajan los pedacitos necesarios para cada pregunta,
   no el archivo completo.
 - El acceso está protegido por usuario y contraseña, con freno automático a los

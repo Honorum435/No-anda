@@ -60,6 +60,20 @@ export const eliminarUsuario = (nombre) =>
 
 export const appEstado = () => pedir('/api/estado');
 
+// ---------- Datos reservados (anonimizado) ----------
+
+export const listarProtegidos = () => pedir('/api/protegidos');
+
+export const agregarProtegido = (valor, tipo) =>
+  pedir('/api/protegidos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ valor, tipo }),
+  });
+
+export const quitarProtegido = (codigo) =>
+  pedir(`/api/protegidos/${encodeURIComponent(codigo)}`, { method: 'DELETE' });
+
 // ---------- Documentos ----------
 
 export const fetchDocuments = () => pedir('/api/documents').then((d) => d.documents);

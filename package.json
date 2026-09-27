@@ -8,13 +8,13 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node server/index.js",
+    "server": "node --disable-warning=ExperimentalWarning server/index.js",
     "dev:all": "concurrently -n frontend,backend -c cyan,magenta \"npm run dev\" \"npm run server\"",
-    "start": "npm run build && node server/index.js",
-    "online": "npm run build && concurrently -n app,tunel -c green,yellow \"node server/index.js\" \"npm run tunel\"",
+    "start": "npm run build && node --disable-warning=ExperimentalWarning server/index.js",
+    "online": "npm run build && concurrently -n app,tunel -c green,yellow \"node --disable-warning=ExperimentalWarning server/index.js\" \"npm run tunel\"",
     "tunel": "cloudflared tunnel --url http://localhost:3001",
-    "usuario": "node server/scripts/usuario.js",
-    "modelos": "node server/scripts/modelos.js"
+    "usuario": "node --disable-warning=ExperimentalWarning server/scripts/usuario.js",
+    "modelos": "node --disable-warning=ExperimentalWarning server/scripts/modelos.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",

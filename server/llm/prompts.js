@@ -32,8 +32,19 @@ MODO: Resumir casos.
 Elabora un resumen estructurado del/los caso(s) del contexto: partes involucradas, hechos, pretensiones, argumentos principales, y resultado o estado si consta. Sé fiel al contenido y cita el documento.`,
 };
 
-export function systemPrompt(modo) {
-  return MODOS[modo] || MODOS.preguntar;
+// Nota que se agrega cuando los datos van anonimizados, para que el modelo
+// trate los códigos como nombres y no se ponga a comentarlos ni a inventar otros.
+const NOTA_CODIGOS = `
+
+DATOS RESERVADOS:
+Los nombres de partes y los datos identificatorios llegan reemplazados por
+códigos como PERSONA_1, EMPRESA_2, DNI_1, CUIT_1 o EMAIL_1. Tratalos como si
+fueran el nombre real: usalos tal cual aparecen, no los traduzcas ni expliques
+que están codificados, y NO inventes códigos que no estén en el contexto.`;
+
+export function systemPrompt(modo, { anonimizado = false } = {}) {
+  const base = MODOS[modo] || MODOS.preguntar;
+  return anonimizado ? base + NOTA_CODIGOS : base;
 }
 
 // K recomendado por modo: precedentes y resumir necesitan más contexto.

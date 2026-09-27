@@ -6,16 +6,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PORT, assertKeys } from './config.js';
+import { PORT, assertKeys, ANONIMIZAR } from './config.js';
 import { extractText } from './ingest/extract.js';
 import { chunkText } from './ingest/chunk.js';
 import { embedDocuments } from './rag/embeddings.js';
-import { addDocument, listDocuments, deleteDocument } from './rag/store.js';
+import {
+  addDocument, listDocuments, deleteDocument,
+  protegidosAgrupados, quitarProtegido,
+} from './rag/store.js';
 import { retrieve } from './rag/retrieve.js';
 import { systemPrompt, topKFor, buildUserMessage } from './llm/prompts.js';
 import { streamChat, nombreProveedor } from './llm/provider.js';
 import { syncMega } from './ingest/mega.js';
 import { mountAuthRoutes, requireAuth, countUsers } from './auth.js';
+import {
+  anonimizar, RestauradorStream, registrarDesdeDocumento, protegerConVariantes,
+} from './privacy.js';
 import { MODO_DEMO, SIN_CLAUDE, respuestaDemo, estadoRecortado } from './demo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +81,7 @@ app.get('/api/estado', requireAuth, (_req, res) => {
     modoDemo: MODO_DEMO,
     proveedor: nombreProveedor,
     recorte: estadoRecortado(),
+    anonimizar: ANONIMIZAR,
   });
 });
 
@@ -99,6 +106,11 @@ app.post('/api/ingest', upload.array('files'), async (req, res) => {
       if (fragmentos.length === 0) {
         resultados.push({ name: file.originalname, ok: false, error: 'No se pudo extraer texto.' });
         continue;
+      }
+
+      // Aprende de este documento qué nombres y datos hay que proteger.
+      if (ANONIMIZAR) {
+        registrarDesdeDocumento({ fileName: file.originalname, texto });
       }
 
       const embeddings = await embedDocuments(fragmentos);
@@ -146,6 +158,29 @@ app.post('/api/mega/sync', async (_req, res) => {
   res.end();
 });
 
+// Datos que se reemplazan por códigos antes de enviarlos a la IA.
+app.get('/api/protegidos', (_req, res) => {
+  res.json({ activo: ANONIMIZAR, protegidos: protegidosAgrupados() });
+});
+
+app.post('/api/protegidos', (req, res) => {
+  const { valor, tipo = 'persona' } = req.body || {};
+  if (!valor || String(valor).trim().length < 3) {
+    return res.status(400).json({ error: 'El dato a proteger es demasiado corto.' });
+  }
+  const permitidos = ['persona', 'empresa', 'dni', 'cuit', 'email', 'telefono'];
+  if (!permitidos.includes(tipo)) {
+    return res.status(400).json({ error: 'Tipo no válido.' });
+  }
+  const codigo = protegerConVariantes(String(valor), tipo);
+  res.json({ ok: true, codigo });
+});
+
+app.delete('/api/protegidos/:codigo', (req, res) => {
+  quitarProtegido(req.params.codigo);
+  res.json({ ok: true });
+});
+
 // Chat con RAG (respuesta en streaming).
 app.post('/api/chat', async (req, res) => {
   const { pregunta, modo = 'preguntar', historial = [], docIds = null } = req.body || {};
@@ -172,18 +207,46 @@ app.post('/api/chat', async (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.write(JSON.stringify({ citas, aviso }) + '\n');
 
-    // Sin clave de Claude: respuesta de demostración con los pasajes reales.
+    // Sin modelo que redacte: respuesta de demostración con los pasajes reales.
     if (SIN_CLAUDE) {
       res.write(respuestaDemo(fragmentos));
       return res.end();
     }
 
-    await streamChat({
-      system: systemPrompt(modo),
-      userMessage: buildUserMessage(pregunta, fragmentos),
-      history: historialSeguro(historial),
-      onText: (delta) => res.write(delta),
+    // Lo que viaja a la IA va con los nombres reemplazados por códigos; la
+    // respuesta se restituye antes de llegar al navegador.
+    const crudo = buildUserMessage(pregunta, fragmentos);
+    const historialLimpio = historialSeguro(historial);
+
+    if (!ANONIMIZAR) {
+      await streamChat({
+        system: systemPrompt(modo),
+        userMessage: crudo,
+        history: historialLimpio,
+        onText: (delta) => res.write(delta),
+      });
+      return res.end();
+    }
+
+    const { texto: mensaje, usados } = anonimizar(crudo);
+    const historialAnon = historialLimpio.map((m) => {
+      const a = anonimizar(m.content);
+      for (const [c, v] of a.usados) usados.set(c, v);
+      return { role: m.role, content: a.texto };
     });
+
+    const restaurador = new RestauradorStream(usados);
+    await streamChat({
+      system: systemPrompt(modo, { anonimizado: true }),
+      userMessage: mensaje,
+      history: historialAnon,
+      onText: (delta) => {
+        const listo = restaurador.empujar(delta);
+        if (listo) res.write(listo);
+      },
+    });
+    const cola = restaurador.fin();
+    if (cola) res.write(cola);
     res.end();
   } catch (err) {
     if (!res.headersSent) {
