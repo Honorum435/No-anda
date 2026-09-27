@@ -30,20 +30,44 @@ Necesitás [Node.js](https://nodejs.org) instalado.
 npm install
 ```
 
-Después copiá el archivo `.env.example` y renombralo a `.env`. Ahí van las claves:
+Después copiá el archivo `.env.example` y renombralo a `.env`.
+
+### Qué IA usar
+
+**Opción A — Gemini (una sola clave, con plan gratuito).** Cubre todo: redactar
+las respuestas, buscar por significado y leer PDF escaneados. La clave se saca
+en [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...    # la IA que redacta (console.anthropic.com)
-VOYAGE_API_KEY=pa-...           # la búsqueda por significado (voyageai.com)
-
-MEGA_EMAIL=...                  # opcional: sincronizar juicios desde Mega
-MEGA_PASSWORD=...
-MEGA_FOLDER=Juicios
+GEMINI_API_KEY=...
 ```
 
-> **Sin claves también anda**, en **modo demostración**: podés cargar documentos,
-> buscarlos por palabras y ver la interfaz completa con las citas. Lo único que
-> no hace es redactar la respuesta con IA. Sirve para mostrar cómo funciona.
+> ⚠️ En el plan **gratuito** de Google, tus prompts y los archivos que subís
+> pueden usarse para mejorar sus productos, y revisores humanos pueden leerlos.
+> Para expedientes con datos de clientes, tenelo presente: en el plan pago no los
+> usan. Si eso es un problema, usá la Opción B o mirá *Reducir la exposición*.
+
+**Opción B — Claude + Voyage (dos claves, ambas pagas).** Más caro, pero no
+entrenan con tus datos.
+
+```
+ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com
+VOYAGE_API_KEY=pa-...            # voyageai.com
+CLAUDE_MODEL=claude-haiku-4-5    # opcional: más económico
+```
+
+El proveedor se elige solo: si hay `GEMINI_API_KEY` usa Gemini, si no Claude.
+Para forzarlo, poné `LLM_PROVIDER=gemini` o `LLM_PROVIDER=claude`.
+
+Si Gemini devuelve un error 404 de modelo, los nombres cambiaron:
+
+```bash
+npm run modelos     # lista los que tu clave tiene habilitados
+```
+
+> **Sin ninguna clave también anda**, en **modo demostración**: cargás documentos,
+> los buscás por palabras y ves la interfaz completa con las citas. Lo único que
+> no hace es redactar la respuesta. Sirve para mostrar cómo funciona sin gastar.
 
 ---
 
@@ -139,3 +163,4 @@ verificación final siempre son del abogado.
 | `npm run online` | Arranca la app + el túnel público |
 | `npm run dev:all` | Modo desarrollo (recarga automática) |
 | `npm run usuario` | Gestión de usuarios por terminal |
+| `npm run modelos` | Lista los modelos de Gemini que tu clave habilita |

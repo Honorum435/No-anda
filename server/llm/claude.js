@@ -4,21 +4,21 @@ import { ANTHROPIC_API_KEY, CLAUDE_MODEL } from '../config.js';
 let client;
 function getClient() {
   if (!ANTHROPIC_API_KEY) {
-    throw new Error('Falta ANTHROPIC_API_KEY. Configúrala en el archivo .env.');
+    throw new Error('Falta ANTHROPIC_API_KEY. Configurala en el archivo .env.');
   }
   if (!client) client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   return client;
 }
 
-// Devuelve un stream del SDK para la respuesta del chat.
-// El system prompt se cachea (prompt caching) porque es estable entre peticiones.
-export function streamChat({ system, userMessage, history = [] }) {
+// Llama a onText(fragmento) por cada trozo y devuelve el texto completo.
+// El system prompt se cachea (prompt caching) porque es estable entre pedidos.
+export async function streamChat({ system, userMessage, history = [], onText }) {
   const messages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: userMessage },
   ];
 
-  return getClient().messages.stream({
+  const stream = getClient().messages.stream({
     model: CLAUDE_MODEL,
     max_tokens: 8000,
     thinking: { type: 'adaptive' },
@@ -26,10 +26,16 @@ export function streamChat({ system, userMessage, history = [] }) {
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages,
   });
+
+  if (onText) stream.on('text', onText);
+  const msg = await stream.finalMessage();
+  return msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
 }
 
-// OCR / extracción de texto de PDFs escaneados e imágenes usando la visión de
-// Claude. Evita dependencias nativas de OCR y maneja bien el español legal.
+// OCR / extracción de texto de PDF escaneados e imágenes con la visión de Claude.
 export async function extractTextFromDocument({ base64, mediaType }) {
   const source =
     mediaType === 'application/pdf'
@@ -40,13 +46,13 @@ export async function extractTextFromDocument({ base64, mediaType }) {
     model: CLAUDE_MODEL,
     max_tokens: 16000,
     system:
-      'Eres un OCR experto. Extrae literalmente TODO el texto del documento, ' +
-      'respetando saltos de párrafo. No resumas, no comentes, no añadas nada. ' +
-      'Devuelve solo el texto extraído.',
+      'Sos un OCR experto. Extraé literalmente TODO el texto del documento, ' +
+      'respetando los saltos de párrafo. No resumas, no comentes, no agregues nada. ' +
+      'Devolvé solamente el texto extraído.',
     messages: [
       {
         role: 'user',
-        content: [source, { type: 'text', text: 'Extrae todo el texto de este documento.' }],
+        content: [source, { type: 'text', text: 'Extraé todo el texto de este documento.' }],
       },
     ],
   });

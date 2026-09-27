@@ -1,12 +1,34 @@
-import { ANTHROPIC_API_KEY, VOYAGE_API_KEY } from './config.js';
+import {
+  puedeRedactar,
+  puedeBuscarPorSignificado,
+  clavesQueFaltan,
+  nombreProveedor,
+} from './llm/provider.js';
 
-// El modo demo se activa solo cuando faltan las claves de API. Permite mostrar
-// la app funcionando (subir juicios, buscar, ver citas) sin gastar un peso.
-// La búsqueda es por palabras clave en vez de por significado, y la redacción
-// de la respuesta la reemplaza un aviso claro de que es una demostración.
-export const SIN_EMBEDDINGS = !VOYAGE_API_KEY;
-export const SIN_CLAUDE = !ANTHROPIC_API_KEY;
+// Cuando falta alguna clave la app sigue andando, pero recortada:
+// - sin búsqueda por significado, busca por palabras clave;
+// - sin modelo que redacte, muestra los pasajes encontrados y lo aclara.
+// Cada carencia es independiente: con una sola clave de Gemini no falta ninguna.
+export const SIN_EMBEDDINGS = !puedeBuscarPorSignificado;
+export const SIN_CLAUDE = !puedeRedactar;
 export const MODO_DEMO = SIN_EMBEDDINGS || SIN_CLAUDE;
+
+// Descripción precisa de qué está recortado, para mostrarla en la interfaz.
+export function estadoRecortado() {
+  if (!MODO_DEMO) return null;
+  const faltan = clavesQueFaltan();
+  const partes = [];
+  if (SIN_EMBEDDINGS) partes.push('la búsqueda es por palabras y no por significado');
+  if (SIN_CLAUDE) partes.push(`${nombreProveedor} todavía no redacta las respuestas`);
+  return {
+    faltan,
+    sinRedactar: SIN_CLAUDE,
+    sinSignificado: SIN_EMBEDDINGS,
+    texto:
+      `Falta${faltan.length > 1 ? 'n' : ''} ${faltan.join(' y ')} en el archivo .env: ` +
+      partes.join(', y ') + '.',
+  };
+}
 
 const VACIAS = new Set([
   'que', 'como', 'para', 'por', 'con', 'los', 'las', 'del', 'una', 'uno',
@@ -46,19 +68,15 @@ export function buscarPorPalabras(chunks, pregunta, k) {
 }
 
 // Respuesta simulada: no inventa contenido, solo muestra lo que encontró y
-// aclara que falta configurar las claves para que la IA redacte de verdad.
+// aclara con precisión qué clave falta para que la IA redacte de verdad.
 export function respuestaDemo(fragmentos) {
-  const falta = [
-    SIN_CLAUDE && 'ANTHROPIC_API_KEY',
-    SIN_EMBEDDINGS && 'VOYAGE_API_KEY',
-  ].filter(Boolean).join(' y ');
+  const falta = clavesQueFaltan().join(' y ') || 'la clave de la IA';
 
   if (fragmentos.length === 0) {
     return (
-      '🔎 MODO DEMOSTRACIÓN\n\n' +
+      'MODO DEMOSTRACIÓN\n\n' +
       'No encontré pasajes relacionados con esa consulta en las fuentes seleccionadas.\n\n' +
-      `(Faltan las claves ${falta} en el archivo .env. Con ellas, la IA busca por ` +
-      'significado y redacta la respuesta.)'
+      `(Falta ${falta} en el archivo .env.)`
     );
   }
 
@@ -67,9 +85,9 @@ export function respuestaDemo(fragmentos) {
     .join('\n');
 
   return (
-    '🔎 MODO DEMOSTRACIÓN\n\n' +
+    'MODO DEMOSTRACIÓN\n\n' +
     `Encontré ${fragmentos.length} pasaje(s) relacionados en tus documentos:\n\n${lista}\n\n` +
     'Acá es donde la IA redactaría la respuesta usando estos pasajes y citándolos ' +
-    `con los numeritos [1] [2].\n\nPara activarla hace falta cargar ${falta} en el archivo .env.`
+    `con los numeritos [1] [2].\n\nPara activarla hace falta cargar ${falta} en el .env.`
   );
 }

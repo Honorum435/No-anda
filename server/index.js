@@ -13,10 +13,10 @@ import { embedDocuments } from './rag/embeddings.js';
 import { addDocument, listDocuments, deleteDocument } from './rag/store.js';
 import { retrieve } from './rag/retrieve.js';
 import { systemPrompt, topKFor, buildUserMessage } from './llm/prompts.js';
-import { streamChat } from './llm/claude.js';
+import { streamChat, nombreProveedor } from './llm/provider.js';
 import { syncMega } from './ingest/mega.js';
 import { mountAuthRoutes, requireAuth, countUsers } from './auth.js';
-import { MODO_DEMO, SIN_CLAUDE, respuestaDemo } from './demo.js';
+import { MODO_DEMO, SIN_CLAUDE, respuestaDemo, estadoRecortado } from './demo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, '..', 'dist');
@@ -71,7 +71,11 @@ mountAuthRoutes(app);
 
 // Estado general de la app (para que el frontend sepa si está en modo demo).
 app.get('/api/estado', requireAuth, (_req, res) => {
-  res.json({ modoDemo: MODO_DEMO });
+  res.json({
+    modoDemo: MODO_DEMO,
+    proveedor: nombreProveedor,
+    recorte: estadoRecortado(),
+  });
 });
 
 // A partir de acá, TODO exige haber iniciado sesión.
@@ -174,14 +178,12 @@ app.post('/api/chat', async (req, res) => {
       return res.end();
     }
 
-    const stream = streamChat({
+    await streamChat({
       system: systemPrompt(modo),
       userMessage: buildUserMessage(pregunta, fragmentos),
       history: historialSeguro(historial),
+      onText: (delta) => res.write(delta),
     });
-
-    stream.on('text', (delta) => res.write(delta));
-    await stream.finalMessage();
     res.end();
   } catch (err) {
     if (!res.headersSent) {

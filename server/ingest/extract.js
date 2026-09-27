@@ -2,7 +2,7 @@ import mammoth from 'mammoth';
 // Importamos el módulo interno para evitar el "modo debug" de pdf-parse que
 // intenta leer un archivo de prueba al cargarse desde la raíz del paquete.
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
-import { extractTextFromDocument } from '../llm/claude.js';
+import { extractTextFromDocument, clavesQueFaltan } from '../llm/provider.js';
 
 // Umbral: si un PDF produce muy poco texto por página, asumimos que está
 // escaneado (es una imagen) y lo pasamos al OCR con Claude.
@@ -36,8 +36,9 @@ async function extraerPdf(buffer) {
       // Sin clave de API (modo demo) no hay OCR. Si el PDF tenía algo de
       // texto lo aprovechamos; si no, avisamos con claridad.
       if (!texto) {
+        var falta = clavesQueFaltan().join(' y ') || 'la clave de la IA';
         throw new Error(
-          `PDF escaneado: hace falta ANTHROPIC_API_KEY para leerlo (${err.message}).`,
+          `PDF escaneado sin texto: hace falta ${falta} para leerlo (${err.message}).`,
         );
       }
     }

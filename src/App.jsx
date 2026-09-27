@@ -46,7 +46,7 @@ function renderConCitas(texto, citas, onAbrir) {
 
 export default function App() {
   const [sesion, setSesion] = useState(null); // null = todavía cargando
-  const [modoDemo, setModoDemo] = useState(false);
+  const [estado, setEstado] = useState(null); // { modoDemo, proveedor, recorte }
   const [documents, setDocuments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [modo, setModo] = useState('preguntar');
@@ -81,7 +81,7 @@ export default function App() {
   useEffect(() => {
     if (!sesion?.autenticado) return;
     recargarDocs();
-    appEstado().then((e) => setModoDemo(e.modoDemo)).catch(() => {});
+    appEstado().then(setEstado).catch(() => {});
   }, [sesion?.autenticado]);
   useEffect(() => { finRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [mensajes]);
 
@@ -156,10 +156,17 @@ export default function App() {
           </button>
         </div>
 
-        {modoDemo && (
+        {estado?.recorte && (
           <p className="mt-3 text-[11px] leading-snug bg-amber-50 text-amber-800 rounded-md px-2 py-1.5">
-            🔎 <strong>Modo demostración.</strong> Faltan las claves de API en el archivo
-            .env: la búsqueda es por palabras y la IA todavía no redacta.
+            <strong>
+              {estado.recorte.sinRedactar ? 'Modo demostración.' : 'Búsqueda limitada.'}
+            </strong>{' '}
+            {estado.recorte.texto}
+          </p>
+        )}
+        {estado && !estado.recorte && (
+          <p className="mt-3 text-[11px] text-slate-400">
+            IA activa: {estado.proveedor}
           </p>
         )}
 
