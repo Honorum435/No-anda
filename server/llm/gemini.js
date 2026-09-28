@@ -84,7 +84,9 @@ export async function streamChat({ system, userMessage, history = [], onText }) 
   const res = await post(`models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
     systemInstruction: { parts: [{ text: system }] },
     contents,
-    generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
+    // temperature 0: la respuesta más probable, sin creatividad. Para citar
+    // expedientes queremos exactitud y repetibilidad, no variedad.
+    generationConfig: { maxOutputTokens: 4096, temperature: 0 },
   });
 
   let completo = '';

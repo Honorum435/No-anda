@@ -29,14 +29,42 @@ function codigoNuevo(tipo) {
   return `${PREFIJO[tipo] || 'DATO'}_${contarPorTipo(tipo) + 1}`;
 }
 
+// Compara nombres ignorando acentos, mayúsculas y puntuación, para que
+// "PEREZ, Juan Carlos" y "Juan Carlos Pérez" se reconozcan como la misma
+// persona. Sin esto se creaban dos códigos para alguien y la IA creía que eran
+// dos personas distintas.
+function clave(valor) {
+  return String(valor)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ')
+    .trim()
+    .split(' ')
+    .sort()          // el orden no importa: "Pérez Juan" ≡ "Juan Pérez"
+    .join(' ');
+}
+
+// Busca si un valor equivalente ya está protegido, aunque esté escrito distinto.
+function codigoEquivalente(valor) {
+  const k = clave(valor);
+  for (const p of protegidosTodos()) {
+    if (clave(p.valor) === k) return p.codigo;
+  }
+  return null;
+}
+
 // Registra un valor a proteger y devuelve su código (estable entre sesiones).
 // Si se pasa `codigo`, el valor se suma como variante de uno ya existente.
 export function proteger(valor, tipo, codigo = null) {
   const limpio = String(valor || '').trim().replace(/\s+/g, ' ');
   if (limpio.length < 3) return null;
-  const ya = protegidoPorValor(limpio);
-  if (ya) return ya.codigo;
-  const cod = codigo || codigoNuevo(tipo);
+
+  const exacto = protegidoPorValor(limpio);
+  if (exacto) return exacto.codigo;
+
+  // Si es el mismo nombre escrito de otra forma, se suma al código existente.
+  const cod = codigo || codigoEquivalente(limpio) || codigoNuevo(tipo);
   agregarProtegido({ codigo: cod, valor: limpio, tipo });
   return cod;
 }
@@ -87,6 +115,112 @@ const RE_TEL = /\b(?:tel(?:éfono)?|celular|cel)\.?\s*:?\s*((?:\+?\d[\d\s().-]{6
 // Carátula al estilo argentino: "APELLIDO, Nombre c/ RAZÓN SOCIAL S.A. s/ materia"
 const RE_CARATULA = /^(.{3,90}?)\s+c\/\s+(.{3,90}?)(?:\s+s\/|$)/i;
 
+// La carátula sólo trae a las partes. Un expediente menciona además testigos,
+// peritos, letrados y terceros, y esos nombres también son datos de personas.
+// Los buscamos por el rol o el tratamiento que los precede.
+const ROLES =
+  'actor|actora|demandado|demandada|codemandado|codemandada|causante|damnificado|damnificada|' +
+  'perito|peritos|testigo|testigos|letrado|letrada|apoderado|apoderada|martillero|' +
+  'denunciante|denunciado|imputado|querellante|heredero|heredera|cónyuge|conyuge|beneficiario';
+const TRATAMIENTOS = 'Sr\\.|Sra\\.|Srta\\.|Don|Doña|Dr\\.|Dra\\.|Ing\\.|Lic\\.|Cont\\.|Arq\\.|Esc\\.';
+
+// Tomamos el tramo que sigue al rol o al tratamiento y después lo partimos:
+// "los testigos Ramón Ledesma y María Soledad Gómez" son DOS personas, y
+// capturarlas juntas dejaba a la segunda sin proteger.
+const RE_POR_ROL = new RegExp(
+  `\\b(?:el|la|los|las)\\s+(?:${ROLES})\\s+([^.;:\\n]{3,90})`,
+  'gi',
+);
+const RE_POR_TRATAMIENTO = new RegExp(`\\b(?:${TRATAMIENTOS})\\s*([^.;:\\n]{3,90})`, 'g');
+
+// Partículas que sí son parte de un nombre ("Juan de la Cruz"). "y" NO está:
+// une dos nombres distintos.
+const ES_PARTICULA = /^(de|del|la|las|los|da|di|van|von|mc|mac)$/i;
+
+function esPalabraDeNombre(p) {
+  return /^[A-ZÁÉÍÓÚÜÑ]/.test(p) || ES_PARTICULA.test(p);
+}
+
+// Saca el tratamiento del principio: "Dra. Silvina Bustos" → "Silvina Bustos".
+const RE_TRATAMIENTO_INICIAL = new RegExp(`^(?:${TRATAMIENTOS})\\s*`, 'i');
+
+// Del tramo, se queda con las primeras palabras que parecen nombre y corta en
+// la primera que no lo es: "María Gómez, compañera de obra" → "María Gómez".
+function recortarANombre(tramo) {
+  const sinTrato = tramo.replace(RE_TRATAMIENTO_INICIAL, '').trim();
+  const palabras = sinTrato.split(/\s+/);
+  const tomadas = [];
+  for (const p of palabras) {
+    if (!esPalabraDeNombre(p)) break;
+    tomadas.push(p);
+    if (tomadas.length === 4) break;
+  }
+  // No terminar en partícula ("Juan de" no es un nombre).
+  while (tomadas.length && ES_PARTICULA.test(tomadas[tomadas.length - 1])) tomadas.pop();
+  return tomadas.join(' ').replace(/[,;.]+$/, '');
+}
+
+// Un tramo puede enumerar varias personas: lo partimos y evaluamos cada una.
+function candidatosDelTramo(tramo) {
+  return tramo
+    .split(/\s+y\s+|\s+e\s+|,|;|\/|\by\b(?=\s+[A-ZÁÉÍÓÚÜÑ])/)
+    .map((p) => recortarANombre(p))
+    .filter((p) => p.length >= 3);
+}
+
+// Palabras que empiezan con mayúscula pero NO son nombres de personas. Sin esta
+// lista, "el actor Ley" o "el perito Contador" se protegerían por error y el
+// texto que ve la IA quedaría destrozado.
+const NO_ES_NOMBRE = new Set([
+  'ley', 'leyes', 'codigo', 'código', 'camara', 'cámara', 'sala', 'tribunal',
+  'juzgado', 'expediente', 'nacion', 'nación', 'provincia', 'municipalidad',
+  'estado', 'ministerio', 'secretaria', 'secretaría', 'fiscalia', 'fiscalía',
+  'defensoria', 'defensoría', 'corte', 'suprema', 'justicia', 'trabajo',
+  'contador', 'contadora', 'medico', 'médico', 'medica', 'médica', 'ingeniero',
+  'psicologo', 'psicólogo', 'psicologa', 'psicóloga', 'oficial', 'unico',
+  'único', 'designado', 'designada', 'interviniente', 'sorteado', 'sorteada',
+  'actora', 'actor', 'demandada', 'demandado', 'parte', 'partes', 'autos',
+  'sentencia', 'resolucion', 'resolución', 'articulo', 'artículo', 'inciso',
+  'convenio', 'colectivo', 'union', 'unión', 'asociacion', 'asociación',
+  'sindicato', 'aseguradora', 'art', 'srl', 'sa', 'sas',
+  // Tratamientos: sin esto, "el letrado Dra. Silvina Bustos" registraba "Dra"
+  // y después reemplazaba todos los "Dra." de todos los expedientes.
+  'sr', 'sra', 'srta', 'don', 'dona', 'doña', 'dr', 'dra', 'ing', 'lic',
+  'cont', 'arq', 'esc',
+]);
+
+function pareceNombre(texto) {
+  const partes = texto.trim().split(/\s+/);
+  if (!partes.length || partes.length > 4) return false;
+  const significativas = partes.filter((p) => !ES_PARTICULA.test(p));
+  if (!significativas.length) return false;
+
+  const plausibles = significativas.every((p) => {
+    const limpio = p.replace(/[^\p{L}]/gu, '').toLowerCase();
+    return limpio.length >= 3 && !NO_ES_NOMBRE.has(limpio);
+  });
+  if (!plausibles) return false;
+
+  // Un apellido suelto se acepta sólo si es largo: con pocas letras el riesgo
+  // de pisar una palabra común es alto.
+  if (significativas.length === 1) {
+    return significativas[0].replace(/[^\p{L}]/gu, '').length >= 4;
+  }
+  return true;
+}
+
+function registrarPorContexto(texto) {
+  for (const re of [RE_POR_ROL, RE_POR_TRATAMIENTO]) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(texto)) !== null) {
+      for (const candidato of candidatosDelTramo(m[1])) {
+        if (pareceNombre(candidato)) protegerConVariantes(candidato, 'persona');
+      }
+    }
+  }
+}
+
 function registrarConRegex(texto, re, tipo) {
   let m;
   re.lastIndex = 0;
@@ -115,6 +249,9 @@ export function registrarDesdeDocumento({ fileName, texto }) {
   registrarConRegex(texto, RE_DNI, 'dni');
   registrarConRegex(texto, RE_EMAIL, 'email');
   registrarConRegex(texto, RE_TEL, 'telefono');
+
+  // Nombres que no están en la carátula: testigos, peritos, letrados, terceros.
+  registrarPorContexto(String(texto || ''));
 }
 
 // ---------- Reemplazo ----------
