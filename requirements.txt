@@ -1,0 +1,14 @@
+sentence-transformers
+transformers
+python-docx
+pypdf
+google-genai
+numpy
+streamlit
+pywin32
+reportlab
+faster-whisper
+pytesseract
+PyMuPDF
+pillow
+segno

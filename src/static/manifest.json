@@ -1,0 +1,15 @@
+{
+  "name": "Asistente Legal",
+  "short_name": "Asistente Legal",
+  "description": "Archivo del estudio: consultas, fichas de causa y escritos.",
+  "lang": "es-AR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F3",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    {"src": "/app/static/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/app/static/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  ]
+}

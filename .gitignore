@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+datos/indice/
+datos/casos_reales/
+datos/drive_casos/
+datos/.clave_gemini
+Casos/
+.env
+.streamlit/secrets.toml
+
+# Historial de consultas (contiene datos de causas reales)
+datos/historial/
+
+# Preferencias de interfaz
+datos/.tamano_letra
+
+# Acceso desde el celular (hash del PIN y estado del servidor)
+datos/.pin_celular
+datos/.celular_activo
+datos/.celular.pid
+
+# Copias del indice, respaldos del codigo e instalador generado
+datos/indice_backup/
+.respaldo/
+dist/

@@ -1,0 +1,50 @@
+# Tema del Asistente Legal: papel marfil, tinta y azul marino, titulares serif.
+# Colores y tipografias van aca (no en CSS) para que no se rompan con las
+# actualizaciones de Streamlit. Contrastes verificados (WCAG 2.2 AA):
+#   texto #0F172A sobre marfil #FAF8F3 ........... 16,8:1
+#   blanco sobre marino #1E3A8A (botones) ......... 10,4:1
+#   subtitulos #475569 sobre marfil ............... 7,1:1
+# El borde de los controles (#7D8591, 3,5:1 - WCAG 1.4.11) se fija en estilos.py:
+# borderColor tambien pinta los separadores decorativos, que conviene que sean suaves.
+[theme]
+base = "light"
+primaryColor = "#1E3A8A"
+backgroundColor = "#FAF8F3"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F172A"
+linkColor = "#1E3A8A"
+linkUnderline = true
+borderColor = "#D9D3C5"
+showWidgetBorder = true
+baseRadius = "10px"
+buttonRadius = "10px"
+
+# Tipografias que ya vienen dentro de Streamlit (Source Sans 3 y Source Serif 4):
+# funcionan sin internet y no se le pide nada a Google. Serif en titulos, sans en texto.
+font = "sans-serif"
+headingFont = "serif"
+# 17 px de base (Streamlit trae 16): el usuario es mayor. "Grande" y "Muy grande"
+# se eligen arriba (A · A+ · A++) y se aplican desde estilos.py.
+baseFontSize = 17
+headingFontSizes = ["2.1rem", "1.65rem", "1.35rem", "1.18rem", "1.05rem", "1rem"]
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+
+# Estados: siempre acompanados de icono y texto (el color nunca es la unica pista).
+greenColor = "#166534"
+orangeColor = "#B45309"
+redColor = "#B91C1C"
+blueColor = "#1E3A8A"
+grayColor = "#475569"
+
+[server]
+# Por defecto la app escucha SOLO en esta PC: nadie del mismo Wi-Fi puede entrar.
+# El acceso desde el celular es otro servidor, aparte y con PIN (src/celular.py).
+address = "127.0.0.1"
+# Sirve src/static/ (icono y manifiesto para instalarla como app).
+enableStaticServing = true
+
+[client]
+showErrorDetails = true
+
+[browser]
+gatherUsageStats = false
